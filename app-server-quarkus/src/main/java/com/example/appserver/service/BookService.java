@@ -33,7 +33,7 @@ public class BookService {
     }
 
     public BookResponse createBook(String title, String author) {
-        String id = "bk-" + (books.size() + 1000);
+        String id = "bk-" + (books.size() + 1001);
         BookResponse book = new BookResponse();
         book.setId(id);
         book.setTitle(title);
