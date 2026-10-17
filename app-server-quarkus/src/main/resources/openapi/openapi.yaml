@@ -10,6 +10,10 @@ paths:
     get:
       summary: Health check
       operationId: getHealth
+      parameters:
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
       responses:
         '200':
           description: Service is healthy
@@ -21,6 +25,10 @@ paths:
     get:
       summary: List all books
       operationId: listBooks
+      parameters:
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
       responses:
         '200':
           description: Books list
@@ -33,6 +41,10 @@ paths:
     post:
       summary: Create a new book
       operationId: createBook
+      parameters:
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
       requestBody:
         required: true
         content:
@@ -58,6 +70,9 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
       responses:
         '200':
           description: Book found
@@ -68,6 +83,28 @@ paths:
         '404':
           description: Book not found
 components:
+  parameters:
+    AplicacionIdHeader:
+      in: header
+      name: aplicacion-id
+      required: true
+      schema:
+        type: string
+        example: APP1
+    UserIdHeader:
+      in: header
+      name: user-id
+      required: true
+      schema:
+        type: string
+        example: SRV
+    RequestIdHeader:
+      in: header
+      name: request-id
+      required: true
+      schema:
+        type: string
+        example: etfg45cieihfnmujieriier
   schemas:
     HealthResponse:
       type: object
