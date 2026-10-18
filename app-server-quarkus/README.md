@@ -2,66 +2,90 @@
 
 This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+It implements a contract-first REST API using the Quarkiverse OpenAPI Server Generator.
+
+Official documentation:
+- Quarkus: <https://quarkus.io/>
+- Quarkiverse OpenAPI Generator: <https://docs.quarkiverse.io/quarkus-openapi-generator/dev/index.html>
+- Server generator docs: <https://docs.quarkiverse.io/quarkus-openapi-generator/dev/server.html>
+
+## Architecture
+
+The API contract is defined in:
+- `src/main/resources/openapi/openapi.yaml`
+
+The project uses the Quarkiverse server generator:
+- `io.quarkiverse.openapi.generator:quarkus-openapi-generator-server`
+- configured via `src/main/resources/application.properties`
+
+The generated contract produces server resources such as:
+- `com.example.appserver.resources.BooksResource`
+- `com.example.appserver.resources.SystemResource`
+- `com.example.appserver.resources.ReportesResource`
+
+The implementation classes live under:
+- `src/main/java/com/example/appserver/api/`
+
+## Runtime configuration
+
+The generator is configured with the following Quarkus properties:
+
+```properties
+quarkus.openapi.generator.server.use=openapitools
+quarkus.openapi.generator.server.spec=openapi.yaml
+quarkus.openapi.generator.server.input-base-dir=src/main/resources/openapi
+quarkus.openapi.generator.server.base-package=com.example.appserver
+```
+
+These properties are read by Quarkus at startup and the generator then creates the JAX-RS interfaces under the generated sources directory.
 
 ## Running the application in dev mode
-
-You can run your application in dev mode that enables live coding using:
 
 ```shell script
 ./mvnw compile quarkus:dev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+> **_NOTE:_** Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 ## Packaging and running the application
-
-The application can be packaged using:
 
 ```shell script
 ./mvnw package
 ```
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
-
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
+Then run:
 
 ```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
+java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+## Current API contract
 
-## Creating a native executable
+The OpenAPI contract includes:
+- `GET /api/health`
+- `GET /api/books`
+- `POST /api/books`
+- `GET /api/books/{id}`
+- `PATCH /api/books/{id}`
+- `GET /api/reports/books-availability`
+- `GET /api/reports/books-by-author`
 
-You can create a native executable using:
+Endpoints under the `Reportes` tag are intentionally grouped together and generated as a separate server resource.
 
-```shell script
-./mvnw package -Dnative
-```
+## Important note about generated methods
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+This project uses the Quarkiverse server generator, not the classic `openapi-generator-maven-plugin`.
 
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
-```
+That means the generated interfaces are designed as resource contracts, and the runtime behavior follows the generated JAX-RS signatures. In particular, a generated method returning a POJO (for example `BookResponse`) will respond with `200 OK` by default, not necessarily `201 Created`, even if the OpenAPI spec declares `201`.
 
-You can then execute your native executable with: `./target/app-server-quarkus-1.0.0-SNAPSHOT-runner`
+If strict `201` semantics are required, the implementation must return `jakarta.ws.rs.core.Response` explicitly.
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
+## Related guides
 
-## Related Guides
+- Quarkus REST guide: <https://quarkus.io/guides/rest>
+- Quarkus OpenAPI guide: <https://quarkus.io/guides/openapi-swaggerui>
+- Quarkiverse OpenAPI Generator server docs: <https://docs.quarkiverse.io/quarkus-openapi-generator/dev/server.html>
 
-- SmallRye OpenAPI ([guide](https://quarkus.io/guides/openapi-swaggerui)): Generate OpenAPI schemas and serve Swagger UI for REST API documentation
-- REST Jackson ([guide](https://quarkus.io/guides/rest#json-serialisation)): Jackson serialization support for Quarkus REST. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it
+## Development notes
 
-## Provided Code
-
-### REST
-
-Easily start your REST Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
+This project is a contract-first example using the Quarkiverse OpenAPI Server Generator and Quarkus 3.40.1.
