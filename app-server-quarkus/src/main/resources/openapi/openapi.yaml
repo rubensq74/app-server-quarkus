@@ -10,6 +10,8 @@ paths:
     get:
       summary: Health check
       operationId: getHealth
+      tags:
+        - System
       parameters:
         - $ref: '#/components/parameters/AplicacionIdHeader'
         - $ref: '#/components/parameters/UserIdHeader'
@@ -25,6 +27,8 @@ paths:
     get:
       summary: List all books
       operationId: listBooks
+      tags:
+        - Books
       parameters:
         - $ref: '#/components/parameters/AplicacionIdHeader'
         - $ref: '#/components/parameters/UserIdHeader'
@@ -41,6 +45,8 @@ paths:
     post:
       summary: Create a new book
       operationId: createBook
+      tags:
+        - Books
       parameters:
         - $ref: '#/components/parameters/AplicacionIdHeader'
         - $ref: '#/components/parameters/UserIdHeader'
@@ -64,6 +70,8 @@ paths:
     get:
       summary: Get a book by id
       operationId: getBookById
+      tags:
+        - Books
       parameters:
         - in: path
           name: id
@@ -82,6 +90,71 @@ paths:
                 $ref: '#/components/schemas/BookResponse'
         '404':
           description: Book not found
+    patch:
+      summary: Update a book partially
+      operationId: updateBook
+      tags:
+        - Books
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBookRequest'
+      responses:
+        '200':
+          description: Book updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+        '404':
+          description: Book not found
+        '400':
+          description: Validation error
+  /api/reports/books-availability:
+    get:
+      summary: Get books availability summary
+      operationId: getBooksAvailabilityReport
+      tags:
+        - Reportes
+      parameters:
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Availability report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooksAvailabilityReport'
+  /api/reports/books-by-author:
+    get:
+      summary: Get books grouped by author
+      operationId: getBooksByAuthorReport
+      tags:
+        - Reportes
+      parameters:
+        - $ref: '#/components/parameters/AplicacionIdHeader'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Author report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooksByAuthorReport'
 components:
   parameters:
     AplicacionIdHeader:
@@ -148,3 +221,58 @@ components:
           type: string
           minLength: 2
           example: Josh Long
+    UpdateBookRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          example: Quarkus in Action
+        author:
+          type: string
+          minLength: 2
+          example: Josh Long
+        available:
+          type: boolean
+          example: true
+    BooksAvailabilityReport:
+      type: object
+      required:
+        - totalBooks
+        - availableBooks
+        - unavailableBooks
+      properties:
+        totalBooks:
+          type: integer
+          format: int32
+          example: 10
+        availableBooks:
+          type: integer
+          format: int32
+          example: 7
+        unavailableBooks:
+          type: integer
+          format: int32
+          example: 3
+    BooksByAuthorReport:
+      type: object
+      required:
+        - authors
+      properties:
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorBookCount'
+    AuthorBookCount:
+      type: object
+      required:
+        - author
+        - count
+      properties:
+        author:
+          type: string
+          example: Josh Long
+        count:
+          type: integer
+          format: int32
+          example: 4

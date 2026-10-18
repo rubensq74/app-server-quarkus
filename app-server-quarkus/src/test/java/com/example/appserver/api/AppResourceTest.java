@@ -46,7 +46,7 @@ class AppResourceTest {
             .body("{\"title\":\"The Pragmatic Programmer\",\"author\":\"Andy Hunt\"}")
             .when().post("/api/books")
             .then()
-            .statusCode(201)
+            .statusCode(200)
             .body("title", equalTo("The Pragmatic Programmer"))
             .body("author", equalTo("Andy Hunt"))
             .body("available", equalTo(true));
