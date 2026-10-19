@@ -1,7 +1,10 @@
 package com.example.appserver.service;
 
+import com.example.appserver.config.BooksConfig;
 import com.example.appserver.model.*;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import io.quarkus.logging.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,9 +13,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class BookService {
+    @Inject
+    BooksConfig booksConfig;
+
     private final Map<String, BookResponse> books = new ConcurrentHashMap<>();
 
+
     public BookService() {
+
+
         BookResponse b1 = new BookResponse();
         b1.setId("bk-1001");
         b1.setTitle("Quarkus in Action");
@@ -29,6 +38,10 @@ public class BookService {
     }
 
     public List<BookResponse> listBooks() {
+
+        Log.infof("Valor1 traido de server config: %s", booksConfig.getValor1());
+        Log.infof("Valor2 traido de server config: %s", booksConfig.getValor2());
+        Log.infof("Valor3 traido de server config: %s", booksConfig.getValor3());
         return new ArrayList<>(books.values());
     }
 
@@ -46,40 +59,42 @@ public class BookService {
     public BookResponse getBookById(String id) {
         return books.get(id);
     }
+
     public BookResponse updateBook(String id, UpdateBookRequest updateBookRequest) {
         BookResponse book = books.get(id);
-        if (book != null) {
-            if (updateBookRequest.getTitle() != null) {
-                book.setTitle(updateBookRequest.getTitle());
-            }
-            if (updateBookRequest.getAuthor() != null) {
-                book.setAuthor(updateBookRequest.getAuthor());
-            }
-            if (updateBookRequest.getAvailable() != null) {
-                book.setAvailable(updateBookRequest.getAvailable());
-            }
+        if (book == null) {
+            return null;
+        }
+        if (updateBookRequest.getTitle() != null) {
+            book.setTitle(updateBookRequest.getTitle());
+        }
+        if (updateBookRequest.getAuthor() != null) {
+            book.setAuthor(updateBookRequest.getAuthor());
+        }
+        if (updateBookRequest.getAvailable() != null) {
+            book.setAvailable(updateBookRequest.getAvailable());
         }
         return book;
     }
-    public BooksAvailabilityReport getBooksAvailabilityReport() {
 
+    public BooksAvailabilityReport getBooksAvailabilityReport() {
         int totalBooks = books.size();
-        int availableBooks = (int) books.values().stream().filter(b -> b.getAvailable()==true).count();
+        int availableBooks = (int) books.values().stream().filter(b -> Boolean.TRUE.equals(b.getAvailable())).count();
         int unavailableBooks = totalBooks - availableBooks;
 
         BooksAvailabilityReport report = new BooksAvailabilityReport();
         report.setTotalBooks(totalBooks);
         report.setAvailableBooks(availableBooks);
         report.setUnavailableBooks(unavailableBooks);
-
         return report;
     }
+
     public BooksByAuthorReport getBooksByAuthorReport() {
         BooksByAuthorReport report = new BooksByAuthorReport();
         Map<String, Integer> booksByAuthor = new ConcurrentHashMap<>();
 
         for (BookResponse book : books.values()) {
-            booksByAuthor.put(book.getAuthor(), booksByAuthor.getOrDefault(book.getAuthor(), 0) + 1);
+            booksByAuthor.merge(book.getAuthor(), 1, Integer::sum);
         }
         booksByAuthor.forEach((key, value) -> {
             report.addAuthorsItem(new AuthorBookCount().author(key).count(value));
