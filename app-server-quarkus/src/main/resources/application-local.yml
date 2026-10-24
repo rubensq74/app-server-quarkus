@@ -1,0 +1,25 @@
+# Activate this Quarkus profile locally with:
+# -Dquarkus.profile=local
+# -Dquarkus.spring-cloud-config.enabled=false
+quarkus:
+  http:
+    host: 127.0.0.1
+    port: 8080
+  spring-cloud-config:
+    enabled: false
+    fail-fast: false
+  datasource:
+    db-kind: h2
+    jdbc:
+      url: "jdbc:h2:mem:appserver;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+    username: sa
+    password: ""
+  hibernate-orm:
+    schema-management:
+      strategy: drop-and-create
+
+parametros:
+  config:
+    valor1: valor1-local
+    valor2: valor2-local
+    valor3: valor3-local

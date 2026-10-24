@@ -1,44 +1,38 @@
-# Diagrama de secuencia del flujo de configuración y API
+# Diagrama de secuencia de una petición REST con persistencia
 
 ```mermaid
 sequenceDiagram
     actor Client as Cliente HTTP
-    participant GitHub as GitHub
-    participant Config as Config Server
-    participant QApp as Quarkus App
-    participant BooksConfig as BooksConfig
-    participant BookService as BookService
-    participant OpenAPI as OpenAPI Contract
-    participant Generator as Quarkiverse Generator
-    participant Resources as Generated Resources
+    participant Filter as ApiHeaderValidationFilter
+    participant Resource as Recurso REST generado
+    participant Impl as Implementación api
+    participant Service as BookService
+    participant Repository as BookRepository Panache
+    participant ORM as Hibernate ORM
+    participant DB as H2 en memoria
+    participant MDC as Contexto de logs
 
-    Client->>QApp: GET /api/health
-    QApp->>BooksConfig: inyecta parámetros
-    BooksConfig->>Config: solicita configuración remota
-    Config->>GitHub: consulta repo/config
-    GitHub-->>Config: application.yml / books-config
-    Config-->>BooksConfig: valor1, valor2, valor3
-    BooksConfig-->>QApp: propiedades resueltas
-
-    OpenAPI->>Generator: define spec openapi.yaml
-    Generator->>Resources: genera interfaces/modelos
-    Resources-->>QApp: BooksResource / SystemResource / ReportesResource
-
-    QApp->>BookService: invoca lógica del negocio
-    BookService-->>QApp: respuesta del endpoint
-    QApp-->>Client: JSON con el resultado
+    Client->>Filter: HTTP request + encabezados
+    Filter->>Filter: valida encabezados requeridos
+    Filter->>MDC: agrega request-id para correlación
+    Filter->>Resource: petición válida
+    Resource->>Impl: invoca operación REST
+    Impl->>Service: delega lógica de negocio
+    Service->>Repository: consulta o modifica libros
+    Repository->>ORM: operación JPA
+    ORM->>DB: SQL
+    DB-->>ORM: filas / resultado
+    ORM-->>Repository: entidades
+    Repository-->>Service: resultado persistido
+    Service-->>Impl: mapea entidad a modelo API
+    Impl-->>Filter: respuesta y estado HTTP
+    Filter->>MDC: registra método, ruta, estado y duración
+    Filter->>MDC: elimina request-id del contexto
+    Filter-->>Client: respuesta HTTP JSON
 ```
 
-## Descripción
+## Flujo de inicialización
 
-1. El cliente hace una petición HTTP a la API.
-2. La app Quarkus necesita configuración y la obtiene del Config Server.
-3. El Config Server puede leer el contenido desde GitHub.
-4. La app inyecta esos valores a través de `BooksConfig` usando `@ConfigProperty`.
-5. El contrato OpenAPI se usa como fuente de verdad para generar la API.
-6. El generator crea las interfaces JAX-RS y modelos.
-7. La lógica de negocio se ejecuta en `BookService` y responde al cliente.
-
-## Observación
-
-Si el Config Server no está disponible, la app puede usar los valores locales definidos en `application.properties` como fallback. En entorno real, la configuración remota suele encargarse de proveer los valores del sistema.
+1. Quarkus crea el esquema a partir de las entidades JPA conforme a `quarkus.hibernate-orm.schema-management.strategy`.
+2. Hibernate ejecuta `src/main/resources/import.sql` e inserta los registros iniciales.
+3. Al procesar una petición, el servicio consulta o modifica esas filas mediante el repositorio Panache.

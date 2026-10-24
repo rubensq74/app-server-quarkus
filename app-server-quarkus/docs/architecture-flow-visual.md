@@ -2,51 +2,40 @@
 
 ```mermaid
 flowchart TB
-    subgraph GitHub[GitHub]
-        GH[Repositorio de configuración\nbooks-config]
-    end
-
-    subgraph Config[Config Server]
-        CS[Spring Cloud Config Server\nhttp://localhost:8888]
+    subgraph ContractBuild[Contrato y generación]
+        Spec[openapi.yaml]
+        Generator[Quarkiverse OpenAPI Generator]
+        Resources[Interfaces y modelos REST generados]
+        Spec --> Generator --> Resources
     end
 
     subgraph Quarkus[Aplicación Quarkus]
-        APP[Quarkus App\napp-server-quarkus]
-        CFG[BooksConfig\n@ConfigProperty]
-        SVC[BookService\nLógica de negocio]
-        OAPI[OpenAPI Contract\nopenapi.yaml]
-        GEN[Quarkiverse Generator\nquarkus-openapi-generator-server]
-        RES[Generated Resources\nBooksResource / SystemResource / ReportesResource]
-        API[Endpoints REST\n/api/books /api/health /api/reports]
+        Client[Cliente HTTP]
+        Filter[Validación de encabezados]
+        Api[Implementaciones REST api]
+        Service[BookService]
+        Repository[BookRepository<br/>Panache]
+        Entity[BookEntity<br/>JPA]
+        Hibernate[Hibernate ORM]
+        H2[(H2 en memoria)]
+        MDC[Correlación MDC<br/>request-id]
+        Logs[Logs HTTP<br/>status / duración]
+        Client -->|petición HTTP| Filter --> Api
+        Resources --> Api
+        Api --> Service --> Repository --> Hibernate --> H2
+        Repository --- Entity
+        Filter -. request-id .-> MDC
+        MDC -. correlaciona logs .-> Service
+        Filter --> Logs
     end
 
-    subgraph Client[Clientes]
-        C1[Cliente HTTP]
-    end
-
-    GH -->|config| CS
-    CS -->|properties| CFG
-    CFG -->|inject| APP
-    OAPI -->|contract| GEN
-    GEN -->|generates| RES
-    RES -->|implements| SVC
-    APP -->|serves| API
-    C1 -->|HTTP request| API
-    API -->|calls| SVC
-    SVC -->|returns| API
-    API -->|JSON response| C1
+    Seed[src/main/resources/import.sql] -->|carga al crear el esquema| H2
 ```
 
 ## Interpretación visual
 
-- GitHub alberga la configuración externa.
-- El Config Server obtiene esos valores y los entrega a la app.
-- Quarkus inyecta la configuración con `@ConfigProperty`.
-- El contrato OpenAPI define la API.
-- El generator crea los recursos REST.
-- La app implementa la lógica real de negocio.
-- Los clientes consumen la API final.
-
-## Observación
-
-Este flujo es válido para entorno real con Config Server. En local, la app también puede usar propiedades declaradas en `application.properties` como fallback.
+- El contrato OpenAPI genera las interfaces REST y modelos usados por las implementaciones.
+- La petición pasa por el filtro de encabezados y llega a la capa `api/`.
+- `BookService` delega las operaciones a `BookRepository`, que usa Hibernate ORM y entidades JPA.
+- H2 almacena libros; los datos iniciales se insertan desde `import.sql` al crear el esquema.
+- La base H2 es en memoria y sus datos duran solo mientras vive el proceso.

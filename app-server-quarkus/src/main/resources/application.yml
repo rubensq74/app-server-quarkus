@@ -1,0 +1,25 @@
+quarkus:
+  http:
+    port: 8080
+  datasource:
+    db-kind: h2
+  hibernate-orm:
+    schema-management:
+      strategy: drop-and-create
+  log:
+    console:
+      format: "%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%c{3.}] (%t) [requestId=%X{requestId}] %s%e%n"
+  openapi:
+    generator:
+      server:
+        use: openapitools
+        spec: openapi.yaml
+        input-base-dir: src/main/resources/openapi
+        base-package: com.example.appserver
+  application:
+    name: config-server
+  spring-cloud-config:
+    enabled: true
+    url: http://localhost:8888/
+    fail-fast: true
+    name: "books-config"

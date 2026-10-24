@@ -35,6 +35,10 @@ public class BooksResourceImpl implements BooksResource {
 
     @Override
     public BookResponse updateBook(String id, String aplicacionId, String userId, String requestId, UpdateBookRequest updateBookRequest) {
-        return bookService.updateBook(id, updateBookRequest);
+        BookResponse book = bookService.updateBook(id, updateBookRequest);
+        if (book == null) {
+            throw new jakarta.ws.rs.NotFoundException();
+        }
+        return book;
     }
 }

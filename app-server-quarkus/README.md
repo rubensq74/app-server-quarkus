@@ -11,20 +11,29 @@ Official documentation:
 
 ## Architecture
 
-The API contract is defined in:
-- `src/main/resources/openapi/openapi.yaml`
+The application follows a contract-first, layered architecture:
 
-The project uses the Quarkiverse server generator:
-- `io.quarkiverse.openapi.generator:quarkus-openapi-generator-server`
-- configured via `src/main/resources/application.properties`
+1. `src/main/resources/openapi/openapi.yaml` is the source of truth for REST paths, headers, request schemas, and responses.
+2. Quarkiverse OpenAPI Generator generates the server interfaces and models during the Maven build. Generated files are not maintained by hand.
+3. `api/` implements the generated resource interfaces and delegates business operations to `service/`.
+4. `service/` handles book operations and reports, using `repository/` for persistence.
+5. `repository/` uses Hibernate ORM with Panache to access JPA entities in `persistence/`.
+6. Hibernate connects to the H2 in-memory database. `src/main/resources/import.sql` inserts the initial books when the schema is created.
+7. `ApiHeaderValidationFilter` correlates request logs with the caller's `request-id`; completion logs include the method, path, HTTP status, and elapsed time without logging request bodies or header values.
 
-The generated contract produces server resources such as:
-- `com.example.appserver.resources.BooksResource`
-- `com.example.appserver.resources.SystemResource`
-- `com.example.appserver.resources.ReportesResource`
+The request flow and component relationships are documented in:
+- [Architecture flow](docs/architecture-flow.md)
+- [Visual architecture](docs/architecture-flow-visual.md)
+- [Request sequence](docs/architecture-flow-sequence.md)
 
-The implementation classes live under:
-- `src/main/java/com/example/appserver/api/`
+Source layout:
+- `src/main/java/com/example/appserver/api/` — REST implementations and header validation.
+- `src/main/java/com/example/appserver/service/` — business logic and transactions.
+- `src/main/java/com/example/appserver/repository/` — Panache repositories.
+- `src/main/java/com/example/appserver/persistence/` — JPA entities.
+- `src/main/resources/openapi/` — OpenAPI contract used for generation.
+- `src/main/resources/import.sql` — initial database records.
+- `src/test/java/` — Quarkus integration tests using JUnit 5 and Rest Assured.
 
 ## Runtime configuration
 
@@ -39,50 +48,41 @@ quarkus.openapi.generator.server.base-package=com.example.appserver
 
 These properties are read by Quarkus at startup and the generator then creates the JAX-RS interfaces under the generated sources directory.
 
+## Database persistence
+
+Book data is persisted through Hibernate ORM with Panache and an H2 in-memory database. The datasource and schema lifecycle are configured in `src/main/resources/application.yaml`:
+
+```yaml
+quarkus:
+  datasource:
+    db-kind: h2
+    jdbc:
+      url: "jdbc:h2:mem:appserver;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+  hibernate-orm:
+    schema-management:
+      strategy: drop-and-create
+```
+
+The database exists only for the lifetime of the application process, and the schema is recreated on startup. Hibernate loads initial records from `src/main/resources/import.sql` when it creates the schema. `BookService` uses a Panache repository for CRUD operations; availability and author reports query persisted data. API response IDs retain the `bk-1001` format.
+
 ## External configuration with a Config Server
 
-This project also demonstrates loading configuration values from an external Config Server, using Quarkus Spring Cloud Config support.
+The application includes Quarkus Spring Cloud Config support. It is enabled in `application.yaml`, points to `http://localhost:8888/`, and is configured to fail fast when the server is unavailable. `BooksConfig` declares the `parametros.config.valor1`, `valor2`, and `valor3` properties.
 
-The configuration currently used is:
+For local development, `src/main/resources/application-local.yaml` supplies local values and disables remote configuration. Activate the `local` Quarkus profile to load it. Also pass `quarkus.spring-cloud-config.enabled=false` as a system property so the build-time Config Client setting is disabled before Quarkus starts:
 
-```properties
-parametros.config.valor1=valor1-local
-parametros.config.valor2=valor2-local
-parametros.config.valor3=valor3-local
+```shell
+./mvnw compile quarkus:dev \
+  -Dquarkus.profile=local \
+  -Dquarkus.spring-cloud-config.enabled=false
 ```
-
-and the app expects these values to be injected through:
-
-```java
-@ConfigProperty(name = "parametros.config.valor1")
-String valor1;
-```
-
-The project is prepared for a remote Config Server with:
-
-```properties
-quarkus.spring-cloud-config.enabled=true
-quarkus.spring-cloud-config.url=http://localhost:8888
-quarkus.spring-cloud-config.name=books-config
-quarkus.spring-cloud-config.fail-fast=true
-```
-
-This means the app can read external configuration values from a Spring Cloud Config server if it is available. In local development, the explicit values in `application.properties` act as a fallback and keep the app bootable without that external dependency.
-
-### Why this is useful
-
-- centralizes runtime values outside the codebase
-- allows different environments (`dev`, `qa`, `prod`) to use different settings
-- keeps secrets and environment-specific data out of source control
-
-### Important note
-
-The current project is intentionally configured to use local values by default for tests and local execution. If you start a real Config Server at `http://localhost:8888`, the values may be overridden by the remote config source.
 
 ## Running the application in dev mode
 
 ```shell script
-./mvnw compile quarkus:dev
+./mvnw compile quarkus:dev \
+  -Dquarkus.profile=local \
+  -Dquarkus.spring-cloud-config.enabled=false
 ```
 
 > **_NOTE:_** Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
@@ -135,6 +135,9 @@ This project uses a small set of Quarkus and Quarkiverse dependencies to support
 - `io.quarkus:quarkus-arc`  
   Provides CDI / dependency injection used throughout the application.
 
+- `io.quarkus:quarkus-hibernate-orm-panache` and `io.quarkus:quarkus-jdbc-h2`
+  Provide the Panache repository layer, Hibernate ORM, and the in-memory H2 JDBC driver.
+
 - `io.quarkus:quarkus-hibernate-validator`  
   Adds bean validation support for request validation and constraints.
 
@@ -178,3 +181,7 @@ This project follows that model using the Quarkiverse server generator, which is
 ## Development notes
 
 This project is a contract-first example using the Quarkiverse OpenAPI Server Generator and Quarkus 3.40.1.
+
+## GitHub Copilot guidelines
+
+Repository-wide guidance for GitHub Copilot is in the repository-root `.github/copilot-instructions.md`. Path-specific Java and OpenAPI guidance is in `.github/instructions/`, and the `contract-first-api` skill in `.github/skills/` describes the workflow for API contract changes. Pull requests use the checklist in `.github/pull_request_template.md`.

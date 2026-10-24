@@ -1,67 +1,68 @@
 package com.example.appserver.service;
 
 import com.example.appserver.config.BooksConfig;
+import com.example.appserver.persistence.BookEntity;
+import com.example.appserver.repository.BookRepository;
 import com.example.appserver.model.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import io.quarkus.logging.Log;
+import io.quarkus.panache.common.Sort;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class BookService {
+    private static final String BOOK_ID_PREFIX = "bk-";
+    private static final long BOOK_ID_OFFSET = 1000;
+
+    @Inject
+    BookRepository bookRepository;
     @Inject
     BooksConfig booksConfig;
 
-    private final Map<String, BookResponse> books = new ConcurrentHashMap<>();
-
-
-    public BookService() {
-
-
-        BookResponse b1 = new BookResponse();
-        b1.setId("bk-1001");
-        b1.setTitle("Quarkus in Action");
-        b1.setAuthor("Josh Long");
-        b1.setAvailable(true);
-        books.put(b1.getId(), b1);
-
-        BookResponse b2 = new BookResponse();
-        b2.setId("bk-1002");
-        b2.setTitle("Clean Code");
-        b2.setAuthor("Robert C. Martin");
-        b2.setAvailable(false);
-        books.put(b2.getId(), b2);
-    }
-
+    @Transactional
     public List<BookResponse> listBooks() {
+        Log.info("\n datos desde el config server: \n"
+                + booksConfig.getValor1() + ", \n"
+                + booksConfig.getValor2() + ", \n"
+                + booksConfig.getValor3());
 
-        Log.infof("Valor1 traido de server config: %s", booksConfig.getValor1());
-        Log.infof("Valor2 traido de server config: %s", booksConfig.getValor2());
-        Log.infof("Valor3 traido de server config: %s", booksConfig.getValor3());
-        return new ArrayList<>(books.values());
+        Log.info("Consultando libros persistidos");
+        return bookRepository.listAll(Sort.by("id")).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
+    @Transactional
     public BookResponse createBook(String title, String author) {
-        String id = "bk-" + (books.size() + 1001);
-        BookResponse book = new BookResponse();
-        book.setId(id);
+        BookEntity book = new BookEntity();
         book.setTitle(title);
         book.setAuthor(author);
         book.setAvailable(true);
-        books.put(id, book);
-        return book;
+        bookRepository.persist(book);
+        return toResponse(book);
     }
 
+    @Transactional
     public BookResponse getBookById(String id) {
-        return books.get(id);
+        Long entityId = toEntityId(id);
+        if (entityId == null) {
+            return null;
+        }
+        return bookRepository.findByIdOptional(entityId)
+                .map(this::toResponse)
+                .orElse(null);
     }
 
+    @Transactional
     public BookResponse updateBook(String id, UpdateBookRequest updateBookRequest) {
-        BookResponse book = books.get(id);
+        Long entityId = toEntityId(id);
+        if (entityId == null) {
+            return null;
+        }
+        BookEntity book = bookRepository.findById(entityId);
         if (book == null) {
             return null;
         }
@@ -74,31 +75,52 @@ public class BookService {
         if (updateBookRequest.getAvailable() != null) {
             book.setAvailable(updateBookRequest.getAvailable());
         }
-        return book;
+        return toResponse(book);
     }
 
+    @Transactional
     public BooksAvailabilityReport getBooksAvailabilityReport() {
-        int totalBooks = books.size();
-        int availableBooks = (int) books.values().stream().filter(b -> Boolean.TRUE.equals(b.getAvailable())).count();
-        int unavailableBooks = totalBooks - availableBooks;
+        long totalBooks = bookRepository.count();
+        long availableBooks = bookRepository.count("available", true);
+        int unavailableBooks = Math.toIntExact(totalBooks - availableBooks);
 
         BooksAvailabilityReport report = new BooksAvailabilityReport();
-        report.setTotalBooks(totalBooks);
-        report.setAvailableBooks(availableBooks);
-        report.setUnavailableBooks(unavailableBooks);
+        report.setTotalBooks(Math.toIntExact(totalBooks));
+        report.setAvailableBooks(Math.toIntExact(availableBooks));
+        report.setUnavailableBooks(Math.toIntExact(unavailableBooks));
         return report;
     }
 
+    @Transactional
     public BooksByAuthorReport getBooksByAuthorReport() {
         BooksByAuthorReport report = new BooksByAuthorReport();
-        Map<String, Integer> booksByAuthor = new ConcurrentHashMap<>();
-
-        for (BookResponse book : books.values()) {
-            booksByAuthor.merge(book.getAuthor(), 1, Integer::sum);
-        }
-        booksByAuthor.forEach((key, value) -> {
-            report.addAuthorsItem(new AuthorBookCount().author(key).count(value));
-        });
+        List<Object[]> booksByAuthor = bookRepository.getEntityManager()
+                .createQuery("select book.author, count(book) from BookEntity book group by book.author order by book.author",
+                        Object[].class)
+                .getResultList();
+        booksByAuthor.forEach(row -> report.addAuthorsItem(
+                new AuthorBookCount().author((String) row[0]).count(Math.toIntExact((Long) row[1]))));
         return report;
+    }
+
+    private BookResponse toResponse(BookEntity entity) {
+        BookResponse response = new BookResponse();
+        response.setId(BOOK_ID_PREFIX + (entity.getId() + BOOK_ID_OFFSET));
+        response.setTitle(entity.getTitle());
+        response.setAuthor(entity.getAuthor());
+        response.setAvailable(entity.isAvailable());
+        return response;
+    }
+
+    private Long toEntityId(String id) {
+        if (id == null || !id.startsWith(BOOK_ID_PREFIX)) {
+            return null;
+        }
+        try {
+            long entityId = Long.parseLong(id.substring(BOOK_ID_PREFIX.length())) - BOOK_ID_OFFSET;
+            return entityId > 0 ? entityId : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 }
